@@ -57,6 +57,10 @@ We design an interface for you to browse and eplore the dataset in https://tabfa
 - unidecode
 - nltk: wordnet, averaged_perceptron_tagger
 
+```
+    pip install torch torchvision torchaudio
+```
+
 ## Direct Running: Without Preprocessing Data
 ### Latent Program Algorithm
 0. Downloading the preprocessed data for LPA

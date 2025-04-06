@@ -147,10 +147,10 @@ def evaluate(val_dataloader, encoder_stat, encoder_prog):
                     inp = None
                     r = None
                 if i not in mapping:
-                    mapping[i] = [s, numpy.asscalar(p), numpy.asscalar(t), inp, r]
+                    mapping[i] = [s, numpy.isscalar(p), numpy.isscalar(t), inp, r]
                 else:
                     if s > mapping[i][0]:
-                        mapping[i] = [s, numpy.asscalar(p), numpy.asscalar(t), inp, r]
+                        mapping[i] = [s, numpy.isscalar(p), numpy.isscalar(t), inp, r]
         else:
             factor = 2
             for i, s, p, t in zip(index, similarity, pred_lab, true_lab):
