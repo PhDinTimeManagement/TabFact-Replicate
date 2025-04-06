@@ -59,6 +59,8 @@ We design an interface for you to browse and eplore the dataset in https://tabfa
 
 ```
     pip install torch torchvision torchaudio
+    pip install pytorch-pretrained-bert
+    pip install tensorboardX
 ```
 
 ## Direct Running: Without Preprocessing Data
