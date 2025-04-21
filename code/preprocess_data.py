@@ -86,22 +86,33 @@ def augment(s):
 
     return s, recover_dict
 
-
+# This is pure string replacement
 def replace_useless(s):
     s = s.replace(',', '')
     s = s.replace('.', '')
     s = s.replace('/', '')
     return s
 
-
+# Sentence-to-table-cell Matching
+'''
+    @param inp: The tokenized input sentence (list of words)
+    @param string: A span of text from the sentence we want to match
+    @param indexes: Candidate cell positions (row, col) in tabs that might match the string
+    @param tabs: The full table data (2D)
+    @param threshold: How strict the matching criteria is? Higher means stricter.
+'''
 def get_closest(inp, string, indexes, tabs, threshold):
+    # Early return if the string is a stop word
     if string in stop_words:
         return None
 
     dist = 10000
+    # Clean the string by removing punctuation like commas, slashes, etc.
     rep_string = replace_useless(string)
+    # Number of words in the cleaned string
     len_string = len(rep_string.split())
 
+    # Find the minimum length difference
     minimum = []
     for index in indexes:
         entity = replace_useless(tabs[index[0]][index[1]])
@@ -112,20 +123,31 @@ def get_closest(inp, string, indexes, tabs, threshold):
         elif abs(len_tab - len_string) == dist:
             minimum.append(index)
 
+    # For each word in rep_string, look up how frequent it is in the reference vocabulary
     vocabs = []
     for s in rep_string.split(' '):
-        vocabs.append(vocab.get(s, 10000))
+        vocabs.append(vocab.get(s, 10000)) # If not found, assume it's rare 10000
 
-    # Whether contain rare words
+    # If a candidate has exactly the same length as the string, we can return it directly
     if dist == 0:
         return minimum[0]
 
-    # String Length
+    '''
+    #--------------------Feature Construction--------------------
+    '''
+
+    # F0: Raw word count of the string
     feature = [len_string]
+
+    # F1: Normalized negative distance. Larger means more similar (closer length)
     # Proportion
     feature.append(-dist / (len_string + dist + 0.) * 4)
+
+    # F2: Reward rare words
     if any([(s.isdigit() and int(s) < 100) for s in rep_string.split()]):
         feature.extend([0, 0])
+
+    # F3: Reward very rare words more
     else:
         # Quite rare words
         if max(vocabs) > 1000:
@@ -137,53 +159,65 @@ def get_closest(inp, string, indexes, tabs, threshold):
             feature.append(3)
         else:
             feature.append(0)
-    # Whether it is only a word
+
+    # F4: Reward longer spans
     if len_string > 1:
         feature.append(1)
     else:
         feature.append(0)
-    # Whether candidate has only one
+
+    # F5: If only one candidate, trust it more
     if len(indexes) == 1:
         feature.append(1)
     else:
         feature.append(0)
-    # Whether cover over half of it
+
+    # F6: Check if string length is more than distance -> good match
     if len_string > dist:
         feature.append(1)
     else:
         feature.append(0)
 
-    # Whether contains alternative
+    # F7: Bonus if candidate has alternative forms (like "John Smith"
     cand = replace_useless(tabs[minimum[0][0]][minimum[0][1]])
     if '(' in cand and ')' in cand:
         feature.append(2)
     else:
         feature.append(0)
-    # Match more with the header
+
+    # F8: Match to table header row? Boost score
     if minimum[0][0] == 0:
         feature.append(2)
     else:
         feature.append(0)
-    # Whether it is a month
+
+    # F9: Bonus if string contains month names
     if any([" " + _ + " " in " " + rep_string + " " for _ in months_a + months_b]):
         feature.append(5)
     else:
         feature.append(0)
 
-    # Whether it matches against the candidate
+    # F10: Penalty if string doesn't appear in candidate cell
     if rep_string in cand:
         feature.append(0)
     else:
         feature.append(-5)
 
     if sum(feature) > threshold:
+        # If there are multiple "best" (same minimum length difference) candidates
+        # We need to resolve the ambiguity
         if len(minimum) > 1:
+            # Check if the first match is not in the header row (row > 0)
             if minimum[0][0] > 0:
+                # Return a special tag [-2, col] to indicate that the match was ambiguous but belongs to a data row
                 return [-2, minimum[0][1]]
+            # Otherwise, just return it normally as the chosen cell
             else:
                 return minimum[0]
+        # If there's only one best match, just return that directly
         else:
             return minimum[0]
+    # If the overall feature score was too low, it means: "no good match"
     else:
         return None
 
@@ -212,13 +246,16 @@ def replace_number(string):
     return string
 
 
+# transliterate is a Python dictionary that
+# maps ASCII-normalized versions of words back to their original non-ASCII versions
+# For example, "café" might be mapped to "cafe"
 def replace(w, transliterate):
     if w in transliterate:
         return transliterate[w]
     else:
         return w
 
-
+# No usage in the code and no idea what it does
 def intersect(w_new, w_old):
     new_set = []
     for w_1 in w_new:
@@ -227,7 +264,7 @@ def intersect(w_new, w_old):
                 new_set.append(w_2)
     return new_set
 
-
+# For e.g., playing => play
 def recover(buf, recover_dict, content):
     if len(recover_dict) == 0:
         return buf
@@ -240,32 +277,68 @@ def recover(buf, recover_dict, content):
                 new_buf.append(w)
         return ' '.join(new_buf)
 
-
+'''
+    @param inp: The original input string
+    @param backbone: A map of lemmatized words to their (row, col) positions in the table
+    @param trans_backbone: Same as above, but for transliterated tokens
+    @param transliterate: Dict to recover the original word from its transliterated form
+    @param tabs: The table content as a 2D list
+    @param recover_dicts: One per cell: used to undo lemmatization or normalization
+    @param repeat: Tracks repeated tokens for handling multi-word pharases
+    @param threshold: Matching threshold for the get_closest function
+    
+    Say your sentence is: "John Moss received 69.9 percent"
+    - You're building up "John Moss" → matches (1, 0).
+    - Now you hit "received", which doesn’t match that table cell.
+    
+    So:
+    - Finalize "John Moss" → #John Moss;1,0#
+    - Append it to new_str
+    - Tag it as 'ENT'
+    - Start new buffer with "received".
+'''
 def postprocess(inp, backbone, trans_backbone, transliterate, tabs, recover_dicts, repeat, threshold=1.0):
+    # Initialize variables
     new_str = []
     new_tags = []
     buf = ""
     pos_buf = []
     last = set()
     prev_closest = []
+
+    # Lemmatize the sentence and get its POS tags
     inp, _, pos_tags = get_lemmatize(inp, True)
+
+    # Loop over words and process them
     for w, p in zip(inp, pos_tags):
+
+        # CASE 1: For word in backbone (original form from table)
+        # Check if the word is part of a repeatable phrase or it's a new token in buffer
         if (w in backbone) and ((" " + w + " " in " " + buf + " " and w in repeat) or (" " + w + " " not in " " + buf + " ")):
+            # If the buffer is empty, start buffering this word and track possible positions
             if buf == "":
                 last = set(backbone[w])
                 buf = w
                 pos_buf.append(p)
             else:
+                # If the buffer is not empty, intersect with prior matches
                 proposed = set(backbone[w]) & last
+                # Of no overlap, run get_closest to finalize the buf and map to a table cell
                 if not proposed:
                     closest = get_closest(inp, buf, last, tabs, threshold)
                     if closest:
-                        buf = '#{};{},{}#'.format(recover(buf, recover_dicts[closest[0]][closest[1]],
-                                                          tabs[closest[0]][closest[1]]), closest[0], closest[1])
+                        # Use recover to restore the fomatting
+                        # Format as "#...;row,col#"
+                        buf = '#{};{},{}#'.format(recover(buf,
+                                                    recover_dicts[closest[0]][closest[1]],
+                                                    tabs[closest[0]][closest[1]]),
+                                                    closest[0], closest[1])
 
+                    # Push to new_str, marks as 'ENT' in new_tags
                     new_str.append(buf)
                     if buf.startswith("#"):
                         new_tags.append('ENT')
+                    # Otherwise, it's just regular words, so we add back their POS tags (stored in pos_buf)
                     else:
                         new_tags.extend(pos_buf)
                     pos_buf = []
@@ -277,6 +350,8 @@ def postprocess(inp, backbone, trans_backbone, transliterate, tabs, recover_dict
                     buf += " " + w
                     pos_buf.append(p)
 
+        # CASE 2: Word is in transliterated backbone
+        # Same logic as above, but now you're working with transliterate[w] and trans_backbone[w]
         elif w in trans_backbone and ((" " + w + " " in " " + buf + " " and w in repeat) or (" " + w + " " not in " " + buf + " ")):
             if buf == "":
                 last = set(trans_backbone[w])
@@ -303,6 +378,8 @@ def postprocess(inp, backbone, trans_backbone, transliterate, tabs, recover_dict
                     last = proposed
                     pos_buf.append(p)
 
+        # CASE 3: Word doesn't match any table cell
+        # This reset the buffer, inserts the unmatched word, and its POS tag
         else:
             if buf != "":
                 closest = get_closest(inp, buf, last, tabs, threshold)
@@ -318,9 +395,11 @@ def postprocess(inp, backbone, trans_backbone, transliterate, tabs, recover_dict
 
             buf = ""
             last = set()
-            new_str.append(replace_number(w))
+            new_str.append(replace_number(w)) # Replace three with 3
             new_tags.append(p)
 
+    # Till here, the for loop ends
+    # Final check for leftover buffer
     if buf != "":
         closest = get_closest(inp, buf, last, tabs, threshold)
         if closest:
@@ -333,9 +412,11 @@ def postprocess(inp, backbone, trans_backbone, transliterate, tabs, recover_dict
             new_tags.extend(pos_buf)
         pos_buf = []
 
+    # First string: sentence with matched table cells like #Moss;1,0# won election
+    # Second string: corresponding tags for each word in the sentence like 'ENT', 'VB', 'NN'
     return " ".join(new_str), " ".join(new_tags)
 
-
+# This function lemmatizes the words in a sentence
 def get_lemmatize(words, return_pos):
     #words = nltk.word_tokenize(words)
     recover_dict = {}
@@ -560,6 +641,8 @@ print("finished part 1")
 results2 = get_func('../collected_data/r2_training_all.json', '../tokenized_data/r2_training_cleaned.json')
 print("finished part 2")
 
+# Pure addition of simple reasoning and complex reasoning
 results2.update(results1)
 with open('../tokenized_data/full_cleaned.json', 'w+') as f:
+    # A function from Python’s built-in json module that serializes (converts) a Python object to JSON format and writes it directly to a file.
     json.dump(results2, f, indent=2)
