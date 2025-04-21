@@ -1,4 +1,8 @@
-# The collected_data directory contains only the statements
+# Step 1: Raw Dataset Source
+- All the text are lower-cased, containing foreign characters in some tables. 
 
-- For r1_training_all.json files, there are 9181 .html.csv files
-- For r2_training_all.json files, there are 7392 .html.csv files
+- There are two files:
+  - **Single-hop (r1)** is collected in the first round (simple channel), which contains sentences involving less reasoning. 
+  - **Multi-hop (r2)** is collected in the second round (complex channel), which involves more complex multi-hop reasoning.
+  - These two files in total contains roughly 110K statements
+  - The positive and negative satements are balanced
