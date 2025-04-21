@@ -561,5 +561,5 @@ results2 = get_func('../collected_data/r2_training_all.json', '../tokenized_data
 print("finished part 2")
 
 results2.update(results1)
-with open('../tokenized_data/full_cleaned.json', 'w') as f:
+with open('../tokenized_data/full_cleaned.json', 'w+') as f:
     json.dump(results2, f, indent=2)
