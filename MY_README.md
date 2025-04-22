@@ -4,4 +4,5 @@
 # Step 2: Data Preprocessing
 - General Tokenization and Entity Matching
   - See details in **preprocessing_data.py**
-  - 
+- Specialized Tokenization for Table-BERT
+  - See details in **preprocess_BERT.py**
