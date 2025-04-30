@@ -263,6 +263,8 @@ if __name__ == "__main__":
     simple_test_tsv = os.path.join(data_save_dir, "simple_test.tsv")
     complex_test_tsv = os.path.join(data_save_dir, "complex_test.tsv")
     meta_file = os.path.join(data_save_dir, "meta.json")
+
+    # Not generated in this script, maybe reserved for downstream tasks
     type2idx_file = os.path.join(data_save_dir, "type2idx.json")
     idx2type_file = os.path.join(data_save_dir, "idx2type.json")
 
@@ -274,9 +276,11 @@ if __name__ == "__main__":
 
     L.info("build tsv datasets ...")
     meta = {}
+
     meta = convert_to_tsv(train_tsv, trainset, "train", meta, args.scan)
     meta = convert_to_tsv(dev_tsv, devset, "dev", meta, args.scan)
     meta = convert_to_tsv(test_tsv, testset, "test", meta, args.scan)
+
     meta = convert_to_tsv(small_test_tsv, small_test, "small_test", meta, args.scan)
     meta = convert_to_tsv(simple_test_tsv, simple_test, "simple_test", meta, args.scan)
     meta = convert_to_tsv(complex_test_tsv, complex_test, "complex_test", meta, args.scan)
