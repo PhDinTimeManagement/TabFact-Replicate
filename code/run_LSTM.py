@@ -253,12 +253,12 @@ def eval_model(model, data_loader, loss_fn, device, n_examples):
 
 def main():
     # File paths
-    TRAIN_FILE = '../dataset/tsv_data_horizontal/train.tsv'
+    TRAIN_FILE = '../processed_datasets/tsv_data_horizontal/train.tsv'
     TEST_FILES = [
-        '../dataset/tsv_data_horizontal/test.tsv',
-        '../dataset/tsv_data_horizontal/simple_test.tsv',
-        '../dataset/tsv_data_horizontal/complex_test.tsv',
-        '../dataset/tsv_data_horizontal/small_test.tsv'
+        '../processed_datasets/tsv_data_horizontal/test.tsv',
+        '../processed_datasets/tsv_data_horizontal/simple_test.tsv',
+        '../processed_datasets/tsv_data_horizontal/complex_test.tsv',
+        '../processed_datasets/tsv_data_horizontal/small_test.tsv'
     ]
 
     MAX_LEN = 160
