@@ -12,7 +12,7 @@ from tqdm import tqdm
 import json
 
 # Load Vocabulary
-vocab = json.load(open('vocab.json'))
+vocab = json.load(open('../preprocessed_data_program/vocab.json'))
 
 # Define special tokens and their indices
 PAD_TOKEN = '<PAD>'
